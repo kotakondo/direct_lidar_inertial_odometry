@@ -53,5 +53,5 @@
     odom/geo/Kq: 4.0
     odom/geo/Kab: 2.25
     odom/geo/Kgb: 1.0
-    odom/geo/abias_max: 5.0
+    odom/geo/abias_max: 100.0
     odom/geo/gbias_max: 0.5
