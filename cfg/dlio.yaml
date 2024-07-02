@@ -27,7 +27,7 @@
                                  0.,  0.,  1. ]
     imu/intrinsics/gyro/bias: [ 0.0, 0.0, 0.0 ]
 
-    extrinsics/baselink2imu/t: [ 0., 0., 0. ]
+    extrinsics/baselink2imu/t: [ 0.011, 0.02329, -0.04412 ]
     extrinsics/baselink2imu/R: [ 1.,  0.,  0.,
                                   0.,  1.,  0.,
                                   0.,  0.,  1. ]
