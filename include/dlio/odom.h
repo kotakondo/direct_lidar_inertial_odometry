@@ -55,7 +55,8 @@ private:
 
   void getParams();
 
-  void callbackPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr pc);
+  // void callbackPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr pc);
+  void callbackPointCloud(const livox_ros_driver2::msg::CustomMsg::SharedPtr livox);
   void callbackImu(const sensor_msgs::msg::Imu::SharedPtr imu);
   void callbackLivox(const livox_ros_driver2::msg::CustomMsg::SharedPtr livox);
 
@@ -113,13 +114,12 @@ private:
   rclcpp::TimerBase::SharedPtr publish_timer;
 
   // Subscribers
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub;
+  rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr lidar_sub;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
   rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr livox_sub;
   rclcpp::CallbackGroup::SharedPtr lidar_cb_group, imu_cb_group, livox_cb_group;
 
   // Publishers
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr livox_pub;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_pub;

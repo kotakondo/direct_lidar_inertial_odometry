@@ -34,7 +34,7 @@ dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
   this->lidar_cb_group = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   auto lidar_sub_opt = rclcpp::SubscriptionOptions();
   lidar_sub_opt.callback_group = this->lidar_cb_group;
-  this->lidar_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>("pointcloud", 1,
+  this->lidar_sub = this->create_subscription<livox_ros_driver2::msg::CustomMsg>("pointcloud", 1,
       std::bind(&dlio::OdomNode::callbackPointCloud, this, std::placeholders::_1), lidar_sub_opt);
 
   this->imu_cb_group = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -43,19 +43,12 @@ dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
   this->imu_sub = this->create_subscription<sensor_msgs::msg::Imu>("imu", rclcpp::SensorDataQoS(),
       std::bind(&dlio::OdomNode::callbackImu, this, std::placeholders::_1), imu_sub_opt);
 
-  this->livox_cb_group = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  auto livox_sub_opt = rclcpp::SubscriptionOptions();
-  livox_sub_opt.callback_group = this->livox_cb_group;
-  this->livox_sub = this->create_subscription<livox_ros_driver2::msg::CustomMsg>("livox", 1,
-      std::bind(&dlio::OdomNode::callbackLivox, this, std::placeholders::_1), lidar_sub_opt);
-
   this->odom_pub     = this->create_publisher<nav_msgs::msg::Odometry>("odom", 1);
   this->pose_pub     = this->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 1);
   this->path_pub     = this->create_publisher<nav_msgs::msg::Path>("path", 1);
   this->kf_pose_pub  = this->create_publisher<geometry_msgs::msg::PoseArray>("kf_pose", 1);
   this->kf_cloud_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("kf_cloud", 1);
   this->deskewed_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("deskewed", 1);
-  this->livox_pub    = this->create_publisher<sensor_msgs::msg::PointCloud2>("livox2dlio", 1);
 
   this->br = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
 
@@ -774,7 +767,7 @@ void dlio::OdomNode::initializeDLIO() {
 
 }
 
-void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr pc) {
+void dlio::OdomNode::callbackPointCloud(const livox_ros_driver2::msg::CustomMsg::SharedPtr livox) {
 
   std::unique_lock<decltype(this->main_loop_running_mutex)> lock(main_loop_running_mutex);
   this->main_loop_running = true;
@@ -782,6 +775,32 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
 
   double then = this->now().seconds();
 
+  // convert custom livox message to pcl pointcloud
+  pcl::PointCloud<LivoxPoint>::Ptr cloud (new pcl::PointCloud<LivoxPoint>);
+
+  RCLCPP_INFO(this->get_logger(), "Received in callbackLivox");
+
+  for (int i = 0; i < livox->point_num; i++) {
+    LivoxPoint p;
+    p.x = livox->points[i].x;
+    p.y = livox->points[i].y;
+    p.z = livox->points[i].z;
+    p.intensity = livox->points[i].reflectivity;
+    p.offset_time = livox->points[i].offset_time;
+    cloud->push_back(p);
+  }
+
+  // publish converted livox pointcloud
+  sensor_msgs::msg::PointCloud2 cloud_ros;
+  pcl::toROSMsg(*cloud, cloud_ros);
+
+  cloud_ros.header.stamp = livox->header.stamp;
+  cloud_ros.header.frame_id = this->lidar_frame;
+
+  // define pc
+  sensor_msgs::msg::PointCloud2::SharedPtr pc = std::make_shared<sensor_msgs::msg::PointCloud2>(cloud_ros);
+
+  // set first scan stamp
   if (this->first_scan_stamp == 0.) {
     this->first_scan_stamp = rclcpp::Time(pc->header.stamp).seconds();
   }
@@ -1019,32 +1038,6 @@ void dlio::OdomNode::callbackImu(const sensor_msgs::msg::Imu::SharedPtr imu_raw)
     }
 
   }
-
-}
-
-// callback for livox's custom pointcloud
-void dlio::OdomNode::callbackLivox(const livox_ros_driver2::msg::CustomMsg::SharedPtr livox) {
-
-  // convert custom livox message to pcl pointcloud
-  pcl::PointCloud<LivoxPoint>::Ptr cloud (new pcl::PointCloud<LivoxPoint>);
-
-  for (int i = 0; i < livox->point_num; i++) {
-    LivoxPoint p;
-    p.x = livox->points[i].x;
-    p.y = livox->points[i].y;
-    p.z = livox->points[i].z;
-    p.intensity = livox->points[i].reflectivity;
-    p.offset_time = livox->points[i].offset_time;
-    cloud->push_back(p);
-  }
-
-  // publish converted livox pointcloud
-  sensor_msgs::msg::PointCloud2 cloud_ros;
-  pcl::toROSMsg(*cloud, cloud_ros);
-
-  cloud_ros.header.stamp = livox->header.stamp;
-  cloud_ros.header.frame_id = this->lidar_frame;
-  this->livox_pub->publish(cloud_ros);
 
 }
 
