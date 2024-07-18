@@ -23,37 +23,29 @@ Also note that the LiDAR and IMU sensors _need_ to be properly time-synchronized
 ### Dependencies
 The following has been verified to be compatible, although other configurations may work too:
 
-- Ubuntu 20.04
-- ROS Noetic (`roscpp`, `std_msgs`, `sensor_msgs`, `geometry_msgs`, `nav_msgs`, `pcl_ros`)
-- C++ 14
-- CMake >= `3.12.4`
-- OpenMP >= `4.5`
-- Point Cloud Library >= `1.10.0`
-- Eigen >= `3.3.7`
+- Ubuntu 22.04
+- ROS2 Humble
 
 ```sh
 sudo apt install libomp-dev libpcl-dev libeigen3-dev
 ```
 
-DLIO currently only supports ROS1, but we welcome any contributions by the community to add ROS2 support!
-
 ### Compiling
-Compile using the [`catkin_tools`](https://catkin-tools.readthedocs.io/en/latest/) package via:
+Compile with
 
 ```sh
-mkdir ws && cd ws && mkdir src && catkin init && cd src
-git clone https://github.com/vectr-ucla/direct_lidar_inertial_odometry.git
-catkin build
+mkdir -p dlio_ws/src && 
+cd dlio_ws/src &&
+git clone https://github.com/kotakondo/direct_lidar_inertial_odometry.git &&
+cd .. &&
+colcon build
 ```
 
 ### Execution
 After compiling, source the workspace and execute via:
 
 ```sh
-roslaunch direct_lidar_inertial_odometry dlio.launch \
-  rviz:={true, false} \
-  pointcloud_topic:=/robot/lidar \
-  imu_topic:=/robot/imu
+ros2 launch direct_lidar_inertial_odometry dlio.launch.py rviz:=true
 ```
 
 Be sure to change the topic names to your corresponding topics. Alternatively, edit the launch file directly if desired. If successful, you should see the following output in your terminal:
@@ -66,7 +58,7 @@ Be sure to change the topic names to your corresponding topics. Alternatively, e
 To save DLIO's generated map into `.pcd` format, call the following service:
 
 ```sh
-rosservice call /robot/dlio_map/save_pcd LEAF_SIZE SAVE_PATH
+ros2 service call /robot/dlio_map/save_pcd LEAF_SIZE SAVE_PATH
 ```
 
 ### Test Data
