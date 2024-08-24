@@ -1,0 +1,26 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/kkondo/code/dlio_ws/install/direct_lidar_inertial_odometry/include/**",
+        "/home/kkondo/code/livox_ws/install/livox_ros_driver2/include/**",
+        "/home/kkondo/code/ros2_ws/install/turtlebot3_gazebo/include/**",
+        "/home/kkondo/code/ros2_ws/install/turtlebot3_fake_node/include/**",
+        "/home/kkondo/code/ros2_ws/install/my_robot_interfaces/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/kkondo/code/dlio_ws/src/direct_lidar_inertial_odometry/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
