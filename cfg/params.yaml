@@ -68,5 +68,5 @@ dlio:
       Kq: 4.0
       Kab: 2.25
       Kgb: 1.0
-      abias_max: 5.0
+      abias_max: 100.0
       gbias_max: 0.5
