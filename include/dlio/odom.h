@@ -21,6 +21,7 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <dynus_interfaces/msg/state.hpp>
 
 // BOOST
 #include <boost/format.hpp>
@@ -70,7 +71,8 @@ private:
   void initializeInputTarget();
   void setInputSource();
 
-  void initializeDLIO();
+  void callbackInitialState(const dynus_interfaces::msg::State::SharedPtr state);
+  bool initializeDLIO();
 
   void getNextPose();
   bool imuMeasFromTimeRange(double start_time, double end_time,
@@ -113,6 +115,7 @@ private:
   // Subscribers
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
+  rclcpp::Subscription<dynus_interfaces::msg::State>::SharedPtr initial_state_sub;
   rclcpp::CallbackGroup::SharedPtr lidar_cb_group, imu_cb_group;
 
   // Publishers
@@ -136,6 +139,7 @@ private:
   std::atomic<bool> dlio_initialized;
   std::atomic<bool> first_valid_scan;
   std::atomic<bool> first_imu_received;
+  std::atomic<bool> first_state_received = false;
   std::atomic<bool> imu_calibrated;
   std::atomic<bool> submap_hasChanged;
   std::atomic<bool> gicp_hasConverged;
@@ -191,6 +195,9 @@ private:
   pcl::PointCloud<PointType>::ConstPtr submap_cloud;
   std::shared_ptr<const nano_gicp::CovarianceList> submap_normals;
   std::shared_ptr<const nanoflann::KdTreeFLANN<PointType>> submap_kdtree;
+
+  // State
+  std::vector<double> initial_state_;
 
   std::vector<int> submap_kf_idx_curr;
   std::vector<int> submap_kf_idx_prev;

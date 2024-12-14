@@ -26,6 +26,7 @@ dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
   this->dlio_initialized = false;
   this->first_valid_scan = false;
   this->first_imu_received = false;
+  this->first_state_received = false;
   if (this->imu_calibrate_) {this->imu_calibrated = false;}
   else {this->imu_calibrated = true;}
   this->deskew_status = false;
@@ -43,6 +44,10 @@ dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
   this->imu_sub = this->create_subscription<sensor_msgs::msg::Imu>("imu", rclcpp::SensorDataQoS(),
       std::bind(&dlio::OdomNode::callbackImu, this, std::placeholders::_1), imu_sub_opt);
 
+  // For initial state
+  this->initial_state_sub = this->create_subscription<dynus_interfaces::msg::State>("state", 1,
+      std::bind(&dlio::OdomNode::callbackInitialState, this, std::placeholders::_1));
+
   this->odom_pub     = this->create_publisher<nav_msgs::msg::Odometry>("odom", 1);
   this->pose_pub     = this->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 1);
   this->path_pub     = this->create_publisher<nav_msgs::msg::Path>("path", 1);
@@ -54,13 +59,14 @@ dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
 
   this->publish_timer = this->create_wall_timer(std::chrono::duration<double>(0.01), 
       std::bind(&dlio::OdomNode::publishPose, this));
+  this->publish_timer->cancel();
 
   this->T = Eigen::Matrix4f::Identity();
   this->T_prior = Eigen::Matrix4f::Identity();
   this->T_corr = Eigen::Matrix4f::Identity();
 
   this->origin = Eigen::Vector3f(0., 0., 0.);
-  this->state.p = Eigen::Vector3f(0., 0., 0.);
+  this->state.p = Eigen::Vector3f(0., 0., 2.);
   this->state.q = Eigen::Quaternionf(1., 0., 0., 0.);
   this->state.v.lin.b = Eigen::Vector3f(0., 0., 0.);
   this->state.v.lin.w = Eigen::Vector3f(0., 0., 0.);
@@ -319,6 +325,11 @@ void dlio::OdomNode::start() {
 
 void dlio::OdomNode::publishPose() {
 
+  if (!this->first_state_received)
+  {
+    return;
+  }
+
   // nav_msgs::msg::Odometry
   this->odom_ros.header.stamp = this->imu_stamp;
   this->odom_ros.header.frame_id = this->odom_frame;
@@ -363,6 +374,11 @@ void dlio::OdomNode::publishPose() {
 void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
   this->publishCloud(published_cloud, T_cloud);
 
+  if (!this->first_state_received)
+  {
+    return;
+  }
+
   // nav_msgs::msg::Path
   this->path_ros.header.stamp = this->imu_stamp;
   this->path_ros.header.frame_id = this->odom_frame;
@@ -398,7 +414,6 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
   transformStamped.transform.rotation.z = this->state.q.z();
 
   br->sendTransform(transformStamped);
-
   // transform: baselink to imu
   transformStamped.header.stamp = this->imu_stamp;
   transformStamped.header.frame_id = this->baselink_frame;
@@ -437,6 +452,10 @@ void dlio::OdomNode::publishToROS(pcl::PointCloud<PointType>::ConstPtr published
 
 void dlio::OdomNode::publishCloud(pcl::PointCloud<PointType>::ConstPtr published_cloud, Eigen::Matrix4f T_cloud) {
 
+  if (!this->first_state_received) {
+    return;
+  }
+
   if (this->wait_until_move_) {
     if (this->length_traversed < 0.1) { return; }
   }
@@ -455,6 +474,10 @@ void dlio::OdomNode::publishCloud(pcl::PointCloud<PointType>::ConstPtr published
 }
 
 void dlio::OdomNode::publishKeyframe(std::pair<std::pair<Eigen::Vector3f, Eigen::Quaternionf>, pcl::PointCloud<PointType>::ConstPtr> kf, rclcpp::Time timestamp) {
+
+  if (!this->first_state_received) {
+    return;
+  }
 
   // Push back
   geometry_msgs::msg::Pose p;
@@ -742,15 +765,57 @@ void dlio::OdomNode::setInputSource() {
   this->gicp.calculateSourceCovariances();
 }
 
-void dlio::OdomNode::initializeDLIO() {
+void dlio::OdomNode::callbackInitialState(const dynus_interfaces::msg::State::SharedPtr state) {
+
+  // Initialize state based on agent's initial pose
+  this->initial_state_.clear();
+  this->initial_state_.push_back(state->pos.x);
+  this->initial_state_.push_back(state->pos.y);
+  this->initial_state_.push_back(state->pos.z);
+  this->initial_state_.push_back(state->quat.w);
+  this->initial_state_.push_back(state->quat.x);
+  this->initial_state_.push_back(state->quat.y);
+  this->initial_state_.push_back(state->quat.z);
+
+  std::cout << "Initial state received!" << std::endl;
+  std::cout << "x: " << this->initial_state_[0] << " y: " << this->initial_state_[1] << " z: " << this->initial_state_[2] << std::endl;
+  std::cout << "q.w: " << this->initial_state_[3] << " q.x: " << this->initial_state_[4] << " q.y: " << this->initial_state_[5] << " q.z: " << this->initial_state_[6] << std::endl;
+
+  // Stop the initial state subscriber by resetting the shared pointer
+  this->initial_state_sub.reset();
+
+  // Start timer for callbacks
+  this->publish_timer->reset();
+
+
+  // Update the flag
+  this->first_state_received = true;
+
+}
+
+bool dlio::OdomNode::initializeDLIO() {
 
   // Wait for IMU
-  if (!this->first_imu_received || !this->imu_calibrated) {
-    return;
+  if (!this->first_imu_received || !this->imu_calibrated || !this->first_state_received) {
+    return false;
   }
+
+  // Initialize state based on agent's initial pose
+  this->state.p.x() = this->initial_state_[0];
+  this->state.p.y() = this->initial_state_[1];
+  this->state.p.z() = this->initial_state_[2];
+  this->state.q.w() = this->initial_state_[3];
+  this->state.q.x() = this->initial_state_[4];
+  this->state.q.y() = this->initial_state_[5];
+  this->state.q.z() = this->initial_state_[6];
+
+  this->lidarPose.p = this->state.p;
+  this->lidarPose.q = this->state.q;
 
   this->dlio_initialized = true;
   std::cout << std::endl << " DLIO initialized!" << std::endl;
+
+  return true;
 
 }
 
@@ -768,7 +833,9 @@ void dlio::OdomNode::callbackPointCloud(const sensor_msgs::msg::PointCloud2::Sha
 
   // DLIO Initialization procedures (IMU calib, gravity align)
   if (!this->dlio_initialized) {
-    this->initializeDLIO();
+    if (!this->initializeDLIO()) {
+      return;
+    }
   }
 
   // Convert incoming scan into DLIO format

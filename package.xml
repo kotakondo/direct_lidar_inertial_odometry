@@ -26,6 +26,8 @@
   <depend>nav_msgs</depend>
   <depend>pcl_ros</depend>
   <depend>rclcpp</depend>
+  <depend>dynus_interfaces</depend>
+
   <exec_depend>rosidl_default_runtime</exec_depend>
 
   <export>
